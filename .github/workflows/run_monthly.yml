@@ -2,12 +2,21 @@ name: Visa Bulletin Monthly Tracker
 
 on:
   schedule:
+    # Runs at 10:00 UTC on the 8th of every month
     - cron: "0 10 8 * *"
   workflow_dispatch:
+
+# Fixes the Node 20 deprecation warning
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   run:
     runs-on: ubuntu-latest
+    
+    # Crucial for allowing the 'git push' step to work
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repo
@@ -19,16 +28,25 @@ jobs:
           python-version: "3.10"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Run scraper
         run: python main.py
 
-      - name: Commit results
+      - name: Commit and Push results
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
+          # Standard GitHub Actions bot identity
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
           git add .
-          git commit -m "update visa bulletin" || echo "no changes"
-          git push
-
+          
+          # Only commit if there are actually changes to avoid 'exit 1'
+          if git diff --quiet && git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "update visa bulletin"
+            git push
+          fi
